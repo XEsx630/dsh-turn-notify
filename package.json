@@ -1,0 +1,59 @@
+{
+  "name": "dsh-turn-notify",
+  "version": "0.1.0",
+  "description": "Native Windows toast and chime when a DeepSeek Harness turn completes.",
+  "license": "MIT",
+  "author": "XEsx630",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/XEsx630/dsh-turn-notify.git"
+  },
+  "homepage": "https://github.com/XEsx630/dsh-turn-notify#readme",
+  "bugs": {
+    "url": "https://github.com/XEsx630/dsh-turn-notify/issues"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "notification",
+    "windows",
+    "toast"
+  ],
+  "type": "module",
+  "scripts": {
+    "test": "node test/simulate.cjs"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "LICENSE",
+    "preview.png",
+    "preview-toast.png"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-api-session-controller"
+      ]
+    }
+  }
+}

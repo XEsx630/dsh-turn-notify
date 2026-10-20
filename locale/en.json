@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Turn notifications",
+    "description": "Shows a Windows notification when a conversation finishes a turn."
+  }
+}
