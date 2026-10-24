@@ -9,11 +9,11 @@ DeepSeek Harness 每轮任务结束时，弹出一条真正的 Windows 系统通
 
 ## 功能
 
-- **任务结束才通知**：监听 UI 的 `uiSession.sessionStatus`，在该轮 `running` 从 `true` 变为 `false` 时触发；不是每条消息、每次工具调用，也不是插件启动时。
+- **任务结束才通知**：同时参考 Session 的 `running` 位、会话列表和 `uiSession.sessionStatus`；三者都变为非运行态时触发。不是每条消息、每次工具调用，也不是插件启动时。
 - **真正的系统 Toast**：由 Host 进程通过 PowerShell WinRT 发出，进入 Windows 通知中心；不依赖浏览器 Notification 权限，也不受 DSH 每次启动随机回环端口的影响。
 - **窗口不在前台也能看到**：DSH 最小化或被其他应用盖住时，Toast 仍显示在最上层。
 - **每轮都通知**：包括当前正在查看的会话；跳过子代理会话和空白会话。
-- **提示音**：应用内 WebAudio 播放两声短音，不依赖 Windows 通知音设置。
+- **提示音**：Toast 播放 Windows 系统通知音；仅当 Host 路由不可用时才回退到应用内 WebAudio 两声短音。
 - **设置页**：设置 → 通知，可开关，也可发送一条测试通知。
 
 ![通知设置](preview.png)
@@ -47,8 +47,8 @@ dsh plugin --profile desktop add .\dsh-turn-notify
 
 插件分两半：
 
-- **Client**（`client.js`）：订阅 `uiSession.sessionStatus`，检测每轮完成；播放提示音，并调用 Host 的 `/dsh-turn-notify/notify`。
-- **Host**（`index.js`）：在本机回环路由上接收请求，用 PowerShell 的 WinRT 投影直接发送 Windows Toast。Toast 本身静音，声音由 Client 播放，避免重复。
+- **Client**（`client.js`）：跟踪 Session 的 `running` 位，并用 `uiSession.sessionStatus` 和会话列表兜底；完成时调用 Host 的 `/dsh-turn-notify/notify`。
+- **Host**（`index.js`）：在本机回环路由上接收请求，用 PowerShell 的 WinRT 投影发送带系统通知音的 Windows Toast。
 
 这样做的原因：渲染进程的 `Notification` 权限绑定在 DSH 的随机回环端口上，每次重启都会丢失；Host 直接发 Toast 则不受影响。
 
@@ -64,7 +64,7 @@ node test/simulate.cjs
 
 - 仅支持 Windows；Toast 依赖 `electron.app.DeepSeek Harness` 这个 AppUserModelID，DSH 桌面端更新后如改动 AUMID，需要同步修改 `index.js`。
 - DSH 窗口可以最小化或处于其他应用后面，但需要保持运行；完全退出 DSH 后无法检测任务完成，也就不会通知。
-- 提示音由渲染进程播放；如果渲染进程被销毁，Host Toast 仍可能显示，但不会有提示音。
+- Toast 声音跟随 Windows 通知声音设置；如果系统关闭了通知音，Toast 会静音。
 
 ## License
 

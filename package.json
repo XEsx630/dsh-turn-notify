@@ -1,7 +1,7 @@
 {
   "name": "dsh-turn-notify",
-  "version": "0.1.0",
-  "description": "Native Windows toast and chime when a DeepSeek Harness turn completes.",
+  "version": "0.1.1",
+  "description": "Native Windows toast with system notification sound when a DeepSeek Harness turn completes.",
   "license": "MIT",
   "author": "XEsx630",
   "repository": {

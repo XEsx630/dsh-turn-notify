@@ -28,7 +28,7 @@ function xml(value) {
  * permission on every restart; the host process can always post a real toast.
  */
 function showToast(title, body) {
-  const document = `<toast><visual><binding template="ToastGeneric"><text>${xml(title)}</text><text>${xml(body)}</text></binding></visual><audio silent="true"/></toast>`
+  const document = `<toast><visual><binding template="ToastGeneric"><text>${xml(title)}</text><text>${xml(body)}</text></binding></visual><audio src="ms-winsoundevent:Notification.Default"/></toast>`
   const encodedDocument = Buffer.from(document, 'utf8').toString('base64')
   const script = `
 [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType=WindowsRuntime] | Out-Null

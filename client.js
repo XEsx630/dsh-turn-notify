@@ -125,9 +125,12 @@ window.__ModuleLoader__.load({
     }
 
     const announce = (key, title, body) => {
-      chime()
+      // The Host toast carries the Windows notification sound. Only the
+      // fallback path needs the renderer chime.
       void hostToast(title, body).then((done) => {
-        if (done || api === undefined || api.permission === 'denied') return
+        if (done) return
+        chime()
+        if (api === undefined || api.permission === 'denied') return
         if (granted()) {
           show(key, title, body)
           return
@@ -211,33 +214,92 @@ window.__ModuleLoader__.load({
         }, 'turn-notify: audio')
 
         const list = ctx.sessions.list
-        // uiSession.sessionStatus is the UI's own running/completion projection:
-        // it observes api-session/status directly, so it covers background
-        // sessions even when the list snapshot would not change.
+        // Three views can lag independently: the UI status projection, the
+        // list row, and the Session's own running bit (the one the focused
+        // conversation uses). Treat any of them as "still running" and notify
+        // when all fall to false.
         const status = ctx.uiSession.sessionStatus
+        const refs = new Map()
         const runningBefore = new Map()
+        let flushing = false
 
-        const seed = () => {
-          for (const [id, state] of status.getSnapshot()) runningBefore.set(id, state.running === true)
+        const rowOf = (id) => list.getSnapshot().byId[id]
+
+        const sessionFor = (id) => {
+          try {
+            return typeof ctx.sessions.get === 'function' ? ctx.sessions.get(id) : undefined
+          } catch {
+            return undefined
+          }
+        }
+
+        const isRunning = (id) => {
+          if (status.getSnapshot().get(id)?.running === true) return true
+          if (rowOf(id)?.running === true) return true
+          return refs.get(id)?.session.getSnapshot().running === true
+        }
+
+        const syncRefs = () => {
+          const ids = new Set(list.getSnapshot().ids ?? [])
+          for (const [id, entry] of refs) {
+            if (ids.has(id) && sessionFor(id) === entry.session) continue
+            entry.dispose()
+            refs.delete(id)
+          }
+          for (const id of ids) {
+            if (refs.has(id)) continue
+            const session = sessionFor(id)
+            if (session === undefined || typeof session.subscribe !== 'function') continue
+            const entry = { session, dispose: () => {} }
+            entry.dispose = session.subscribe(() => onChange())
+            refs.set(id, entry)
+          }
         }
 
         const onChange = () => {
-          const snapshot = status.getSnapshot()
-          for (const [id, state] of snapshot) {
-            const running = state.running === true
-            const previous = runningBefore.get(id)
-            runningBefore.set(id, running)
-            if (previous !== true || running) continue
-            const row = list.getSnapshot().byId[id]
-            if (row === undefined || row.parentId !== undefined || row.blank === true) continue
-            notify(`dsh-turn:${id}`, row.displayTitle ?? '会话已完成', '任务已完成 · 点击返回会话')
+          if (flushing) return
+          flushing = true
+          try {
+            syncRefs()
+            const ids = new Set([
+              ...status.getSnapshot().keys(),
+              ...(list.getSnapshot().ids ?? []),
+              ...refs.keys(),
+            ])
+            for (const id of ids) {
+              const running = isRunning(id)
+              const previous = runningBefore.get(id)
+              runningBefore.set(id, running)
+              if (previous !== true || running) continue
+              const row = rowOf(id)
+              if (row === undefined || row.parentId !== undefined || row.blank === true) continue
+              notify(`dsh-turn:${id}`, row.displayTitle ?? '会话已完成', '任务已完成 · 点击返回会话')
+            }
+            for (const id of [...runningBefore.keys()]) if (!ids.has(id)) runningBefore.delete(id)
+          } finally {
+            flushing = false
           }
-          for (const id of [...runningBefore.keys()]) if (!snapshot.has(id)) runningBefore.delete(id)
+        }
+
+        const seed = () => {
+          syncRefs()
+          const ids = new Set([
+            ...status.getSnapshot().keys(),
+            ...(list.getSnapshot().ids ?? []),
+            ...refs.keys(),
+          ])
+          for (const id of ids) runningBefore.set(id, isRunning(id))
         }
 
         seed()
-        const unsubscribe = status.subscribe(onChange)
-        ctx.effect(() => () => unsubscribe(), 'turn-notify: session status')
+        const unsubscribeStatus = status.subscribe(onChange)
+        const unsubscribeList = list.subscribe(onChange)
+        ctx.effect(() => () => {
+          unsubscribeStatus()
+          unsubscribeList()
+          for (const entry of refs.values()) entry.dispose()
+          refs.clear()
+        }, 'turn-notify: session status')
 
         const gesture = () => {
           primeAudio()
@@ -263,4 +325,4 @@ window.__ModuleLoader__.load({
   },
 })
 
-// Completion trigger: uiSession.sessionStatus running true -> false; toast goes through the Host.
+// Completion trigger: Session running bit, with uiSession/list fallbacks; toast goes through the Host.
